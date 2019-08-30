@@ -1,0 +1,56 @@
+{% block content %}
+<h1>Calendar  <a class="btn" href="/tutorial/calendar0">Update</a></h1>
+<table class="table">
+  <thead>
+    <tr>
+      <th scope="col">Organizer</th>
+      <th scope="col">Subject</th>
+      <th scope="col">Start</th>
+      <th scope="col">Location</th>
+      <th scope="col">Name</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if meetings %}
+      {% for event in meetings %}
+        <tr>
+          <td>{{ event.Organizer }}</td>
+          <td>{{ event.Subject }}</td>
+          <td>{{ event.Start|date:'SHORT_DATETIME_FORMAT' }}</td>
+          <td>{{ event.Location }}</td>
+          <td><a class="btn" href="/meeting/calendar{{event.Id}}">Detail</a></td>
+        </tr>
+        {% for attendee in event.addtendees%}
+        {% endfor %}
+      {% endfor %}
+    {% endif %}
+  </tbody>
+</table>
+<table class="table">
+  <thead>
+    <tr>
+      <th scope="col">Name</th>
+      <th scope="col">Address</th>
+      <th scope="col">Isattend</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if people %}
+      {% for peo in people %}
+        <tr>
+          <td>{{ peo.Name }}</td>
+          <td>{{ peo.Address }}</td>
+          <td>{%if peo.Isattend == 0%}
+                    False
+               {%elif peo.Isattend == 1%}
+                    Late
+               {% else %}
+                True
+                {%endif%}
+          </td>
+        </tr>
+      {% endfor %}
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
