@@ -52,3 +52,12 @@ class Room(models.Model):
 
     class Meta:
         db_table = "Room"
+
+class Group(models.Model):
+    Id = models.IntegerField(primary_key=True)
+    Groupname = models.CharField(max_length=255)
+    def __str__(self):
+        return "%d:%s"%(self.Id,self.Groupname)
+
+    class Meta:
+        db_table = "Group"

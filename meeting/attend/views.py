@@ -7,7 +7,7 @@ from django.shortcuts import render
 from django.db.models import Q
 
 # Create your views here.
-from attend.models import Events, Attendees, User, Room
+from attend.models import Events, Attendees, User, Room, Group
 
 
 def calendar(request,pIndex):
@@ -37,11 +37,12 @@ def newUser(request):#新用户注册
     if request.method == "POST":
         openid=request.POST["openid"]
         email=request.POST["email"]
+        group = request.POST["group"]
         user=User.objects.filter(Address=email).all()
         if(len(user)!=0):
-            User.objects.filter(Address=email).update(Openid=openid)
+            User.objects.filter(Address=email).update(Openid=openid,Group=group)
         else:
-            User.objects.create(Openid=openid,Address=email)
+            User.objects.create(Openid=openid,Address=email,Group=group)
     return HttpResponse("2")
 
 def attend2(request):#会议签到
@@ -205,30 +206,57 @@ def insert(request):#管理员添加会议人员
 def users(request):#用户列表
     if request.method == "POST":
         lists = User.objects.all().order_by("Name")
+        groups = Group.objects.all().order_by("Groupname")
         json_list = []
-        for a in lists:
-            if(len(a.Openid)!=0):#如果openid!=null
-                users_dict={}
-                users_dict["Userid"] = a.Id
-                users_dict["Username"] = a.Name
-                users_dict["Useraddress"] = a.Address
-                json_list.append(users_dict)
+        i=0
+        group1=[]
+        for group in groups:
+            groups_dict = {}
+            users=User.objects.filter(Group=group.Groupname).all().order_by("Name")
+            user_list=[]
+            if(len(users)!=0):
+                for a in users:
+                    users_dict = {}
+                    users_dict["Userid"] = a.Id
+                    users_dict["name"] = a.Name
+                    user_list.append(users_dict)
+            if(i==0):
+                group1=user_list
+            i+=1
+            userlist = json.loads(json.dumps(user_list, ensure_ascii=False))
+            groups_dict["Groupid"]=group.Id
+            groups_dict["name"] = group.Groupname
+            groups_dict["Userlist"] = userlist
+            json_list.append(groups_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
-        return JsonResponse({"users": ret1}, json_dumps_params={'ensure_ascii': False})
+        objectgroups=[]
+        objectgroups.append(json_list)
+        objectgroups.append(group1)
+        ret2 = json.loads(json.dumps(objectgroups, ensure_ascii=False))
+        return JsonResponse({"groups": ret1,"objectgroups":ret2}, json_dumps_params={'ensure_ascii': False})
 
-
+def groups(request):  # 部门列表
+    if request.method == "POST":
+        groups = Group.objects.all().order_by("Groupname")
+        json_list = []
+        print(groups)
+        for a in groups:
+            groups_dict = {}
+            groups_dict["id"] = a.Id
+            groups_dict["group"] = a.Groupname
+            json_list.append(groups_dict)
+        ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
+        return JsonResponse({"groups": ret1}, json_dumps_params={'ensure_ascii': False})
 #以下为sugar API
 def sugartodayevents(request):#当天会议列表sugar中Apirate用到
     if request.method == "POST":
         conditions = json.loads(request.body)
         conditions = conditions["conditions"]
         for id in conditions:
-            localtime = id['v']
+            if(id['k']=="date"):
+                localtime = id['v']
         #localtime = time.strftime("%Y-%m-%d", time.localtime())
-        now = datetime.datetime.now()
-        start = now - datetime.timedelta(hours=23,minutes=59,seconds=59)
-        stop = now + datetime.timedelta(hours=23,minutes=59,seconds=59)
-        lists = Events.objects.filter(Start__gte=start,Start__lte=stop).all().order_by("Start")
+        lists = Events.objects.all().order_by("Start")
         json_list = []
         for a in lists:
             if (str(a.Start.strftime("%Y-%m-%d")) == localtime):
@@ -274,8 +302,8 @@ def apidetail(request):#返回会议签到详情Apirate饼图所需数据
         for a in range(0,3):
             if (a == 0):
                 events_dict={}
-                events_dict["name"] = "未签到"
-                events_dict["value"] = Falsenum
+                events_dict["name"] = "准时"
+                events_dict["value"] = Truenum
                 json_list.append(events_dict)
             if (a == 1):
                 events_dict={}
@@ -283,9 +311,9 @@ def apidetail(request):#返回会议签到详情Apirate饼图所需数据
                 events_dict["value"] = Latenum
                 json_list.append(events_dict)
             if (a == 2):
-                events_dict={}
-                events_dict["name"] = "出席"
-                events_dict["value"] = Truenum
+                events_dict = {}
+                events_dict["name"] = "未签到"
+                events_dict["value"] = Falsenum
                 json_list.append(events_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
         return JsonResponse({"data": ret1, "status": 0,
@@ -352,7 +380,7 @@ def apitable(request):#返回会议签到详情Apitable表格所需数据
                         events_dict["time"] = str(a.Attendtime.strftime("%H:%M:%S"))
                     else:
                         events_dict["time"] = ""
-                    events_dict["__showx_row_level"] = "red"
+                    #events_dict["__showx_row_level"] = "red"
                     rows.append(events_dict)
                 elif (a.Isattend == 1):
                     events_dict = {}
@@ -376,7 +404,7 @@ def apitable(request):#返回会议签到详情Apitable表格所需数据
                         events_dict["time"] = str(a.Attendtime.strftime("%H:%M:%S"))
                     else:
                         events_dict["time"] = ""
-                    events_dict["__showx_row_level"] = "red"
+                    #events_dict["__showx_row_level"] = "red"
                     rows.append(events_dict)
         data = {"columns": columns, "rows": rows}
         return JsonResponse({"data": data, "status": 0,
@@ -413,8 +441,8 @@ def userrate(request):#返回user rate中具体个人的饼图信息
         for a in range(0,3):
             if (a == 0):
                 events_dict={}
-                events_dict["name"] = "未签到"
-                events_dict["value"] = Falsenum
+                events_dict["name"] = "准时"
+                events_dict["value"] = Truenum
                 json_list.append(events_dict)
             if (a == 1):
                 events_dict={}
@@ -422,9 +450,9 @@ def userrate(request):#返回user rate中具体个人的饼图信息
                 events_dict["value"] = Latenum
                 json_list.append(events_dict)
             if (a == 2):
-                events_dict={}
-                events_dict["name"] = "出席"
-                events_dict["value"] = Truenum
+                events_dict = {}
+                events_dict["name"] = "未签到"
+                events_dict["value"] = Falsenum
                 json_list.append(events_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
         return JsonResponse({"data": ret1, "status": 0,
@@ -487,7 +515,7 @@ def onemouthdetail(request):#返回单个用户在日期范围内签到详情表
                         events_dict["time"] = str(a.Attendtime.strftime("%H:%M:%S"))
                     else:
                         events_dict["time"] = ""
-                    events_dict["__showx_row_level"] = "red"
+                    #events_dict["__showx_row_level"] = "red"
                     rows.append(events_dict)
                 elif(a.Isattend == 1):
                     events_dict = {}
@@ -511,7 +539,7 @@ def onemouthdetail(request):#返回单个用户在日期范围内签到详情表
                         events_dict["time"] = str(a.Attendtime.strftime("%H:%M:%S"))
                     else:
                         events_dict["time"] = ""
-                    events_dict["__showx_row_level"] = "red"
+                    #events_dict["__showx_row_level"] = "red"
                     rows.append(events_dict)
         data = {"columns": columns, "rows": rows}
         return JsonResponse({"data": data, "status": 0,
@@ -544,9 +572,9 @@ def usersrate(request):#返回整体当月签到详情user rate 饼图
         json_list = []
         for a in range(0,3):
             if (a == 0):
-                events_dict={}
-                events_dict["name"] = "未签到"
-                events_dict["value"] = Falsenum
+                events_dict = {}
+                events_dict["name"] = "准时"
+                events_dict["value"] = Truenum
                 json_list.append(events_dict)
             if (a == 1):
                 events_dict={}
@@ -554,9 +582,9 @@ def usersrate(request):#返回整体当月签到详情user rate 饼图
                 events_dict["value"] = Latenum
                 json_list.append(events_dict)
             if (a == 2):
-                events_dict={}
-                events_dict["name"] = "出席"
-                events_dict["value"] = Truenum
+                events_dict = {}
+                events_dict["name"] = "未签到"
+                events_dict["value"] = Falsenum
                 json_list.append(events_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
         return JsonResponse({"data": ret1, "status": 0,
@@ -590,9 +618,9 @@ def apilist(request):#user rate 条形图
                 Total = Truenum + Falsenum + Latenum
                 if(Total==0):
                     Total=1
-                Truenum= round(((Truenum * 100) / Total), 1)
-                Latenum = round(((Latenum * 100) / Total), 1)
-                Falsenum = round(((Falsenum * 100) / Total), 1)
+                Truenum = round(((Truenum) / Total), 3)
+                Latenum = round(((Latenum) / Total), 3)
+                Falsenum = round(((Falsenum) / Total), 3)
                 users_dict = {}
                 users_dict["id"] = a.Id
                 users_dict["name"] = a.Name
@@ -600,7 +628,7 @@ def apilist(request):#user rate 条形图
                 users_dict["Latenum"] = Latenum
                 users_dict["Falsenum"] = Falsenum
                 json_list.append(users_dict)
-        json_list = sorted(json_list, key=operator.itemgetter('Falsenum'))#根据用户为签到比例从大到小排序
+        json_list = sorted(json_list, key=operator.itemgetter('Truenum'))#根据用户为签到比例从大到小排序
         categories=[]
         series=[]
         data0 = []
@@ -618,8 +646,8 @@ def apilist(request):#user rate 条形图
         for a in range(0,3):
             if (a == 0):
                 events_dict = {}
-                events_dict["name"] = "未签到"
-                events_dict["data"] = data0
+                events_dict["name"] = "准时"
+                events_dict["data"] = data1
                 series.append(events_dict)
             if (a == 1):
                 events_dict = {}
@@ -628,8 +656,8 @@ def apilist(request):#user rate 条形图
                 series.append(events_dict)
             if (a == 2):
                 events_dict = {}
-                events_dict["name"] = "出席"
-                events_dict["data"] = data1
+                events_dict["name"] = "未签到"
+                events_dict["data"] = data0
                 series.append(events_dict)
         series = json.loads(json.dumps(series, ensure_ascii=False))
         data={"categories":categories,"series":series}
@@ -645,10 +673,11 @@ def groupslist(request):#group rate big条形图
                 s1 = s1.split(',')
                 start = datetime.datetime.strptime(s1[0], "%Y-%m-%d")
                 end = datetime.datetime.strptime(s1[1], "%Y-%m-%d")
-        groups = User.objects.values('Group').distinct().all().order_by("Group")
+        groups = Group.objects.all().order_by("Groupname")
+        #groups = User.objects.values('Group').distinct().all().order_by("Group")
         json_list = []
         for i in groups:
-            lists=User.objects.filter(Group=i['Group']).all()
+            lists=User.objects.filter(Group=i.Groupname).all()
             Truenum = 0
             Falsenum = 0
             Latenum = 0
@@ -667,17 +696,17 @@ def groupslist(request):#group rate big条形图
             Total = Total+Truenum + Falsenum + Latenum
             if(Total==0):
                 Total=1
-            Truenum= round(((Truenum * 100) / Total), 1)
-            Latenum = round(((Latenum * 100) / Total), 1)
-            Falsenum = round(((Falsenum * 100) / Total), 1)
+            Truenum = round(((Truenum) / Total), 3)
+            Latenum = round(((Latenum) / Total), 3)
+            Falsenum = round(((Falsenum) / Total), 3)
             users_dict = {}
-            users_dict["id"] = a.Id
-            users_dict["name"] = str(i['Group'])
+            users_dict["id"] = i.Id
+            users_dict["name"] = str(i.Groupname)
             users_dict["Truenum"] = Truenum
             users_dict["Latenum"] = Latenum
             users_dict["Falsenum"] = Falsenum
             json_list.append(users_dict)
-        json_list = sorted(json_list, key=operator.itemgetter('Falsenum'))#根据用户为签到比例从大到小排序
+        json_list = sorted(json_list, key=operator.itemgetter('Truenum'))#根据用户为签到比例从大到小排序
         categories=[]
         series=[]
         data0 = []
@@ -695,8 +724,8 @@ def groupslist(request):#group rate big条形图
         for a in range(0,3):
             if (a == 0):
                 events_dict = {}
-                events_dict["name"] = "未签到"
-                events_dict["data"] = data0
+                events_dict["name"] = "准时"
+                events_dict["data"] = data1
                 series.append(events_dict)
             if (a == 1):
                 events_dict = {}
@@ -705,8 +734,8 @@ def groupslist(request):#group rate big条形图
                 series.append(events_dict)
             if (a == 2):
                 events_dict = {}
-                events_dict["name"] = "出席"
-                events_dict["data"] = data1
+                events_dict["name"] = "未签到"
+                events_dict["data"] = data0
                 series.append(events_dict)
         series = json.loads(json.dumps(series, ensure_ascii=False))
         data={"categories":categories,"series":series}
@@ -720,7 +749,7 @@ def grouplist(request):#group rate small条形图
             dependence = body["dependence"]
             group=dependence["item"]["category"]
         except:
-            group = "0"
+            group = "3"
         for id in conditions:
             if (id['k'] == "dateRange"):
                 s1 = id['v']
@@ -746,9 +775,9 @@ def grouplist(request):#group rate small条形图
                 Total = Truenum + Falsenum + Latenum
                 if(Total==0):
                     Total=1
-                Truenum= round(((Truenum * 100) / Total), 1)
-                Latenum = round(((Latenum * 100) / Total), 1)
-                Falsenum = round(((Falsenum * 100) / Total), 1)
+                Truenum= round(((Truenum ) / Total), 3)
+                Latenum = round(((Latenum) / Total), 3)
+                Falsenum = round(((Falsenum ) / Total), 3)
                 users_dict = {}
                 users_dict["id"] = a.Id
                 users_dict["name"] = a.Name
@@ -756,7 +785,7 @@ def grouplist(request):#group rate small条形图
                 users_dict["Latenum"] = Latenum
                 users_dict["Falsenum"] = Falsenum
                 json_list.append(users_dict)
-        json_list = sorted(json_list, key=operator.itemgetter('Falsenum'))#根据用户为签到比例从大到小排序
+        json_list = sorted(json_list, key=operator.itemgetter('Truenum'))#根据用户为签到比例从大到小排序
         categories=[]
         series=[]
         data0 = []
@@ -774,8 +803,8 @@ def grouplist(request):#group rate small条形图
         for a in range(0,3):
             if (a == 0):
                 events_dict = {}
-                events_dict["name"] = "未签到"
-                events_dict["data"] = data0
+                events_dict["name"] = "准时"
+                events_dict["data"] = data1
                 series.append(events_dict)
             if (a == 1):
                 events_dict = {}
@@ -784,8 +813,8 @@ def grouplist(request):#group rate small条形图
                 series.append(events_dict)
             if (a == 2):
                 events_dict = {}
-                events_dict["name"] = "出席"
-                events_dict["data"] = data1
+                events_dict["name"] = "未签到"
+                events_dict["data"] = data0
                 series.append(events_dict)
         series = json.loads(json.dumps(series, ensure_ascii=False))
         data={"categories":categories,"series":series}
@@ -799,7 +828,7 @@ def grouprate(request):#返回group rate 饼图
             dependence = body["dependence"]
             group = dependence["item"]["category"]
         except:
-            group = "0"
+            group = "3"
         for id in conditions:
             if (id['k'] == "dateRange"):
                 s1 = id['v']
@@ -827,9 +856,9 @@ def grouprate(request):#返回group rate 饼图
         json_list = []
         for a in range(0,3):
             if (a == 0):
-                events_dict={}
-                events_dict["name"] = "未签到"
-                events_dict["value"] = Falsenum
+                events_dict = {}
+                events_dict["name"] = "准时"
+                events_dict["value"] = Truenum
                 json_list.append(events_dict)
             if (a == 1):
                 events_dict={}
@@ -837,9 +866,9 @@ def grouprate(request):#返回group rate 饼图
                 events_dict["value"] = Latenum
                 json_list.append(events_dict)
             if (a == 2):
-                events_dict={}
-                events_dict["name"] = "出席"
-                events_dict["value"] = Truenum
+                events_dict = {}
+                events_dict["name"] = "未签到"
+                events_dict["value"] = Falsenum
                 json_list.append(events_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
         return JsonResponse({"data": ret1, "status": 0,
