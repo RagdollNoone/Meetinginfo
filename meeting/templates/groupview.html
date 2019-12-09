@@ -1,0 +1,197 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-Frame-Options" content="allow">
+    <title>Group view</title>
+    <script src="/static/assets/jquery.min.js"></script>
+    <script type="text/javascript" src="/static/assets/echarts.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/bootstrap-3.3.7/css/bootstrap.min.css" >
+    <link rel="stylesheet" type="text/css" href="/static/bootstrap-datepicker-1.9.0/css/bootstrap-datepicker3.min.css" >
+<!-- jQuery (Bootstrap 的 JavaScript 插件需要引入 jQuery) -->
+      <script src="/static/bootstrap-3.3.7/js/jquery.js"></script>
+      <!-- 包括所有已编译的插件 -->
+      <script src="/static/bootstrap-3.3.7/js/bootstrap.min.js"></script>
+    <script src="/static/bootstrap-datepicker-1.9.0/js/bootstrap-datepicker.min.js"></script>
+<script src="/static/bootstrap-datepicker-1.9.0/locales/bootstrap-datepicker.zh-CN.min.js"></script>
+    <script>
+      $(function() {
+       $('.input-daterange input').each(function() {
+    $(this).datepicker('clearDates');
+});
+      });
+    </script>
+
+</head>
+<body onload="load()">
+<center>
+    {% include "menu.html" %}
+	<div class="container-fluid" style="padding-top:20px;padding-bottom:40px"><!--条件筛选-->
+	<div class="row-fluid">
+		<div class="span12">
+            <div class="col-xs-4 col-sm-4">
+            </div>
+            <div class="col-xs-4 col-sm-3">
+                 <div class="input-group input-daterange">
+           <input id="datepicker1" type="text" class="form-control" data-provide="datepicker" data-date-format="yyyy-mm-dd">
+            <div class="input-group-addon">to</div>
+            <input id="datepicker2" type="text" class="form-control" data-provide="datepicker" data-date-format="yyyy-mm-dd">
+            </div>
+            </div>
+            <div class="col-xs-4 col-sm-1">
+                <button type="button" class="btn btn-default" onclick="fetchData()">确定</button>
+            </div>
+            <div class="col-xs-4 col-sm-4">
+            </div>
+        </div>
+		</div>
+	</div>
+
+</center>
+<div class="container-fluid" style="padding-top:20px;padding-bottom:40px">
+<div class="row-fluid" style="padding-top: 20px;padding-bottom: 200px">
+		<div class="span12">
+            <div class="col-xs-6 col-sm-6">
+                <div id="bar" style="width:100%; height:400px;"></div>
+            </div>
+            <div class="col-xs-6 col-sm-6">
+                <div id="pie" style="width:100%; height:400px;"></div>
+            </div>
+        </div>
+</div>
+</div>
+<div class="container-fluid" style="padding-top:20px;padding-bottom:60px">
+<div class="row-fluid" style="padding-top: 20px;padding-bottom: 200px">
+		<div class="span12">
+            <div class="col-xs-6 col-sm-6">
+                <div id="bar2" style="width:100%; height:400px;"></div>
+            </div>
+            <div class="col-xs-6 col-sm-6">
+                <div id="pie2" style="width:100%; height:400px;"></div>
+            </div>
+        </div>
+</div>
+</div>
+<script>
+    $(document).ready(function(){
+      $('.datepicker').datepicker({
+        format: 'yyyy-mm-dd',
+        startDate: '-3d'
+    });
+});
+
+</script>
+<script>
+
+    var Host="/meeting/viewtype/"
+    //var Host = "/viewtype/";
+    function load() {
+        getDayTime();
+        fetchData();
+    };
+    function getDayTime() {
+            var date = new Date();
+                //获取具体的年月日等信息
+            var y = date.getFullYear();
+            var m = date.getMonth()+1;
+            var d = date.getDate();
+            if(d<10){
+            d="0"+d;
+        }
+            var str=y+"-"+m+"-"+d;
+            date.setMonth(date.getMonth()-1);
+            var y = date.getFullYear();
+            var m = date.getMonth()+1;
+            var d = date.getDate();
+            if(d<10){
+            d="0"+d;
+        }
+            var formatwdate = y+'-'+m+'-'+d;
+            document.getElementById("datepicker2").value=str;
+            document.getElementById("datepicker1").value=formatwdate;
+        }
+        function fetchData() {
+            var date1 = document.getElementById("datepicker1").value;
+            var date2 = document.getElementById("datepicker2").value;
+            var dateRange = date1 + "," + date2
+            $.ajax({
+                type: "POST",
+                url: Host,
+                contentType: "application/json",
+                dataType: 'json',
+                data: JSON.stringify({"type": "groupslist", "conditions": [{"k": "dateRange", "v": dateRange}]}),
+                success: function (result) {
+                    console.log(result);
+                    var len=result.data.yAxis[0].data.length-1;
+                    chart.setOption(result.data);
+                    chart.on('click', function (params) {
+                        getgroup(params.name);
+                    });
+                    getgroup(result.data.yAxis[0].data[len])
+                }
+            });
+            $.ajax({
+                type: "POST",
+                url: Host,
+                contentType: "application/json",
+                dataType: 'json',
+                data: JSON.stringify({"type": "groupsrate", "conditions": [{"k": "dateRange", "v": dateRange}]}),
+                success: function (result) {
+                    chart2.setOption(result.data);
+                }
+            });
+
+        }
+        function getgroup(group) {
+            var date1 = document.getElementById("datepicker1").value;
+            var date2 = document.getElementById("datepicker2").value;
+            var dateRange = date1 + "," + date2
+            $.ajax({
+                type: "POST",
+                url: Host,
+                contentType: "application/json",
+                dataType: 'json',
+                data: JSON.stringify({
+                    "type": "grouplist",
+                    "conditions": [{"k": "dateRange", "v": dateRange}],
+                    "dependence":{"item":{"category":group}}
+                }),
+                success: function (result) {
+                    //console.log(result)
+                    var res=result.data
+                    //console.log(res.series);
+                    var i=0;
+                    for(i;i<res.series.length;i++){
+                        res.series[i]["barMaxWidth"]=30
+                    }
+                    //console.log(res.series);
+                    chart3.setOption(res);
+                }
+            });
+            $.ajax({
+                type: "POST",
+                url: Host,
+                contentType: "application/json",
+                dataType: 'json',
+                data: JSON.stringify({
+                    "type": "grouprate",
+                    "conditions": [{"k": "dateRange", "v": dateRange}],
+                    "dependence":{"item":{"category":group}}
+                }),
+                success: function (result) {
+                    chart4.setOption(result.data);
+                }
+            });
+        }
+</script>
+    <script>
+        var chart = echarts.init(document.getElementById('bar'),'light', {renderer: 'canvas'});
+        var chart2 = echarts.init(document.getElementById('pie'), 'light',{renderer: 'canvas'});
+        var chart3 = echarts.init(document.getElementById('bar2'),'light', {renderer: 'canvas'});
+        var chart4 = echarts.init(document.getElementById('pie2'), 'light',{renderer: 'canvas'});
+    </script>
+
+
+</body>
+</html>

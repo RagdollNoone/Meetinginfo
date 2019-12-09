@@ -2,10 +2,20 @@ import json
 import operator
 import time
 import datetime
-from django.http import HttpResponse, JsonResponse
+import pyecharts
+from random import randrange
+from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
 from django.shortcuts import render
+from pyecharts.commons import utils
 from django.db.models import Q
-
+from pyecharts.commons.utils import JsCode
+from pyecharts.components import Table
+from pyecharts.globals import ThemeType
+from pyecharts.options import ComponentTitleOpts
+from rest_framework.views import APIView
+from pyecharts.faker import Faker
+from pyecharts.charts import Bar, Pie, Grid, Line
+from pyecharts import options as opts
 # Create your views here.
 from attend.models import Events, Attendees, User, Room, Group
 
@@ -42,7 +52,7 @@ def newUser(request):#新用户注册
         if(len(user)!=0):
             User.objects.filter(Address=email).update(Openid=openid,Group=group)
         else:
-            User.objects.create(Openid=openid,Address=email,Group=group)
+            User.objects.create(Openid=openid,Address=email,Group=group,Passwd="ames@12345")
     return HttpResponse("2")
 
 def attend2(request):#会议签到
@@ -57,7 +67,7 @@ def attend2(request):#会议签到
             location="nolocation"
         localtime = time.strftime("%Y-%m-%d", time.localtime())
         now = datetime.datetime.now()
-        start = now - datetime.timedelta( minutes=30)
+        start = now - datetime.timedelta(minutes=30)
         stop = now + datetime.timedelta(minutes=10)
         lists = Attendees.objects.filter(Meetingtime__gt=start,Meetingtime__lt=stop,Address=email).all().order_by("-Id")#获取近40分钟所有签到记录
         print(location)
@@ -72,7 +82,7 @@ def attend2(request):#会议签到
                     events_dict = {}
                     if(int(a.Isattend)==0):
                         events_dict["Istrue"] = 0
-                        print(a.Isattend,type(a.Isattend))
+                        #print(a.Isattend,type(a.Isattend))
                         localtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
                         if(localtime>str(a.Meetingtime)):
                             Attendees.objects.filter(Id=a.Id).update(Isattend=2, Attendtime=localtime)#迟到
@@ -239,7 +249,7 @@ def groups(request):  # 部门列表
     if request.method == "POST":
         groups = Group.objects.all().order_by("Groupname")
         json_list = []
-        print(groups)
+        #print(groups)
         for a in groups:
             groups_dict = {}
             groups_dict["id"] = a.Id
@@ -287,6 +297,9 @@ def apidetail(request):#返回会议签到详情Apirate饼图所需数据
         for id in conditions:
             eventid=id['v']
         lists = Attendees.objects.filter(Eventid=eventid).all().order_by("Meetingtime")
+        thisevent=Events.objects.filter(Id=eventid).all()
+        for this in thisevent:
+            subject=this.Subject
         Truenum=0#正确签到的人数
         Falsenum=0
         Latenum=0
@@ -316,12 +329,17 @@ def apidetail(request):#返回会议签到详情Apirate饼图所需数据
                 events_dict["value"] = Falsenum
                 json_list.append(events_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
+        data = {"subject": subject, "ret1": ret1}
+        return data
         return JsonResponse({"data": ret1, "status": 0,
                          "msg": 'Error'}, json_dumps_params={'ensure_ascii': False})
 def apitable(request):#返回会议签到详情Apitable表格所需数据
     if request.method == "POST":
         body = json.loads(request.body)
-        conditions=body["conditions"]
+        try:
+            conditions=body["conditions"]
+        except:
+            conditions = [1]
         eventid=0
         try:
             drillDowns=body["drillDowns"]
@@ -338,6 +356,8 @@ def apitable(request):#返回会议签到详情Apitable表格所需数据
             events=Events.objects.filter(Subject=subject,Start=start).all()
             eventid=events[0].Id
         lists = Attendees.objects.filter(Eventid=eventid).all()
+        events = Events.objects.filter(Id=eventid).all()
+        subject = events[0].Subject
         columns = []
         for i in range(0, 5):
             if (i == 0):
@@ -406,7 +426,8 @@ def apitable(request):#返回会议签到详情Apitable表格所需数据
                         events_dict["time"] = ""
                     #events_dict["__showx_row_level"] = "red"
                     rows.append(events_dict)
-        data = {"columns": columns, "rows": rows}
+        data = {"columns": columns, "rows": rows,"subject":subject}
+        return data
         return JsonResponse({"data": data, "status": 0,
                              "msg": 'Error'}, json_dumps_params={'ensure_ascii': False})
 def userrate(request):#返回user rate中具体个人的饼图信息
@@ -455,6 +476,8 @@ def userrate(request):#返回user rate中具体个人的饼图信息
                 events_dict["value"] = Falsenum
                 json_list.append(events_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
+        data = {"user": username, "ret1": ret1}
+        return data
         return JsonResponse({"data": ret1, "status": 0,
                          "msg": 'Error'}, json_dumps_params={'ensure_ascii': False})
 def onemouthdetail(request):#返回单个用户在日期范围内签到详情表格
@@ -587,12 +610,15 @@ def usersrate(request):#返回整体当月签到详情user rate 饼图
                 events_dict["value"] = Falsenum
                 json_list.append(events_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
+        data = {"ret1": ret1}
+        return data
         return JsonResponse({"data": ret1, "status": 0,
                          "msg": 'Error'}, json_dumps_params={'ensure_ascii': False})
 def apilist(request):#user rate 条形图
     if request.method == "POST":
-        conditions = json.loads(request.body)
-        conditions = conditions["conditions"]
+        body = json.loads(request.body)
+        conditions = body["conditions"]
+        select=body["group"]
         for id in conditions:
             if (id['k'] == "dateRange"):
                 s1 = id['v']
@@ -628,7 +654,14 @@ def apilist(request):#user rate 条形图
                 users_dict["Latenum"] = Latenum
                 users_dict["Falsenum"] = Falsenum
                 json_list.append(users_dict)
-        json_list = sorted(json_list, key=operator.itemgetter('Truenum'))#根据用户为签到比例从大到小排序
+        if(select=="出勤排名"):
+            json_list = sorted(json_list, key=operator.itemgetter('Truenum'))#根据用户为签到比例从大到小排序
+        elif(select=="缺勤排名"):
+            json_list = sorted(json_list, key=operator.itemgetter('Falsenum'))  # 根据用户为缺勤比例从大到小排序
+        elif(select=="迟到排名"):
+            json_list = sorted(json_list, key=operator.itemgetter('Latenum'))  # 根据用户为迟到比例从大到小排序
+        else:
+            json_list = sorted(json_list, key=operator.itemgetter('Truenum'))  # 根据用户为签到比例从大到小排序
         categories=[]
         series=[]
         data0 = []
@@ -660,11 +693,14 @@ def apilist(request):#user rate 条形图
                 events_dict["data"] = data0
                 series.append(events_dict)
         series = json.loads(json.dumps(series, ensure_ascii=False))
-        data={"categories":categories,"series":series}
+        data = {"categories": categories, "series": series,"select":select}
+        return data
         return JsonResponse({"status": 0,
 	"msg": 'Error',"data": data }, json_dumps_params={'ensure_ascii': False})
 def groupslist(request):#group rate big条形图
     if request.method == "POST":
+        print(request.body)
+        #conditions = json.loads(request.headers)
         conditions = json.loads(request.body)
         conditions = conditions["conditions"]
         for id in conditions:
@@ -739,8 +775,8 @@ def groupslist(request):#group rate big条形图
                 series.append(events_dict)
         series = json.loads(json.dumps(series, ensure_ascii=False))
         data={"categories":categories,"series":series}
-        return JsonResponse({"status": 0,
-	"msg": 'Error',"data": data }, json_dumps_params={'ensure_ascii': False})
+        return data
+        return JsonResponse({"status": 0,"msg": 'Error',"data": data }, json_dumps_params={'ensure_ascii': False})
 def grouplist(request):#group rate small条形图
     if request.method == "POST":
         body = json.loads(request.body)
@@ -749,7 +785,7 @@ def grouplist(request):#group rate small条形图
             dependence = body["dependence"]
             group=dependence["item"]["category"]
         except:
-            group = "3"
+            group = "Engineering"
         for id in conditions:
             if (id['k'] == "dateRange"):
                 s1 = id['v']
@@ -817,7 +853,8 @@ def grouplist(request):#group rate small条形图
                 events_dict["data"] = data0
                 series.append(events_dict)
         series = json.loads(json.dumps(series, ensure_ascii=False))
-        data={"categories":categories,"series":series}
+        data = {"categories": categories, "series": series,"group":group}
+        return data
         return JsonResponse({"status": 0,
 	"msg": 'Error',"data": data }, json_dumps_params={'ensure_ascii': False})
 def grouprate(request):#返回group rate 饼图
@@ -828,7 +865,7 @@ def grouprate(request):#返回group rate 饼图
             dependence = body["dependence"]
             group = dependence["item"]["category"]
         except:
-            group = "3"
+            group = "Engineering"
         for id in conditions:
             if (id['k'] == "dateRange"):
                 s1 = id['v']
@@ -871,5 +908,296 @@ def grouprate(request):#返回group rate 饼图
                 events_dict["value"] = Falsenum
                 json_list.append(events_dict)
         ret1 = json.loads(json.dumps(json_list, ensure_ascii=False))
+        data = {"group": group, "ret1": ret1}
+        return data
         return JsonResponse({"data": ret1, "status": 0,
                          "msg": 'Error'}, json_dumps_params={'ensure_ascii': False})
+
+#可视化图表界面
+
+def response_as_json(data):
+    json_str = json.dumps(data)
+    response = HttpResponse(
+        json_str,
+        content_type="application/json",
+    )
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
+def json_response(data, code=200):
+    data = {
+        "code": code,
+        "msg": "success",
+        "data": data,
+    }
+    return response_as_json(data)
+
+
+def json_error(error_string="error", code=500, **kwargs):
+    data = {
+        "code": code,
+        "msg": error_string,
+        "data": {}
+    }
+    data.update(kwargs)
+    return response_as_json(data)
+
+
+barJsonResponse = json_response
+JsonError = json_error
+
+
+def bar_base() -> Bar:
+    c = (
+         Bar(init_opts=opts.InitOpts(theme=ThemeType.MACARONS))
+        .add_xaxis(["衬衫", "羊毛衫", "雪纺衫", "裤子", "高跟鞋", "袜子"])
+        .add_yaxis("商家A", [randrange(0, 100) for _ in range(6)])
+        .add_yaxis("商家B", [randrange(0, 100) for _ in range(6)])
+        .set_global_opts(title_opts=opts.TitleOpts(title="Bar", subtitle="Error"))
+        .add_js_funcs("""console.log('hello world')""")
+        .dump_options_with_quotes()
+    )
+
+    return c
+
+def grid_vertical() -> Grid:
+    bar = (
+        Bar()
+        .add_xaxis(Faker.choose())
+        .add_yaxis("商家A", Faker.values())
+        .add_yaxis("商家B", Faker.values())
+        .set_global_opts(title_opts=opts.TitleOpts(title="Grid-Bar"))
+    )
+    line = (
+        Line()
+        .add_xaxis(Faker.choose())
+        .add_yaxis("商家A", Faker.values())
+        .add_yaxis("商家B", Faker.values())
+        .set_global_opts(
+            title_opts=opts.TitleOpts(title="Grid-Line", pos_top="48%"),
+            legend_opts=opts.LegendOpts(pos_top="48%"),
+        )
+    )
+
+    grid = (
+        Grid()
+        .add(bar, grid_opts=opts.GridOpts(pos_bottom="60%",pos_left="60%"))
+        .add(line, grid_opts=opts.GridOpts(pos_top="60%"))
+        .dump_options_with_quotes()
+    )
+    return grid
+
+def bar(list,bartitle) -> Grid:
+    try:
+        selected=list["selected"]
+    except:
+        selected=["True","True","True"]
+    c = (
+        Bar({"theme": ThemeType.MACARONS})
+        .add_xaxis(list["categories"])
+        .add_yaxis(list["series"][0]["name"], list["series"][0]["data"], stack="stack1",is_selected=selected[0],)
+        .add_yaxis(list["series"][1]["name"], list["series"][1]["data"], stack="stack1",is_selected=selected[1],)
+        .add_yaxis(list["series"][2]["name"], list["series"][2]["data"], stack="stack1",is_selected=selected[2],)
+        .reversal_axis()
+        .set_series_opts(itemstyle_opts={
+            "normal": {
+                "barBorderRadius": [30, 30, 30, 30],
+            }},
+            )
+
+        .set_series_opts(label_opts=opts.LabelOpts(position="right"))
+        .set_global_opts(
+            yaxis_opts=opts.AxisOpts(axislabel_opts=opts.LabelOpts(rotate=+0),boundary_gap=['10%','10%'],name_gap=300),
+            title_opts=opts.TitleOpts(title=bartitle),
+            legend_opts=opts.LegendOpts(pos_top="95%"),
+        )
+        #.dump_options_with_quotes()
+    )
+    grid = (
+        Grid()
+            .add(c, grid_opts=opts.GridOpts(pos_left="20%"))
+            .dump_options_with_quotes()
+    )
+    return grid
+
+
+def pie(list1,bartitle) -> Pie:
+    c = (
+        Pie({"theme": ThemeType.MACARONS})
+        .add("", list1)
+        .set_global_opts(
+            legend_opts=opts.LegendOpts(pos_top="95%"),
+            title_opts=opts.TitleOpts(title=bartitle))
+        .set_series_opts(label_opts=opts.LabelOpts(formatter="{b}: {c}"))
+        .dump_options_with_quotes()
+    )
+    return c
+
+def table(list1,bartitle) -> Table:
+    c = Table()
+    headers=list1["headers"]
+    rows=list1["rows"]
+    c.add(headers,rows).set_global_opts(
+            title_opts=ComponentTitleOpts(title=bartitle))
+    return c
+
+def viewtype(request):
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body)
+            type = body["type"]
+            if (type == "getevents"):
+                events=sugartodayevents(request)
+                return events
+            if (type == "eventpie"):
+                x = apidetail(request)
+                name = []
+                value = []
+                for a in x["ret1"]:
+                    name.append(a["name"])
+                    value.append(a["value"])
+                a = [list(z) for z in zip(name, value)]
+                text = "会议签到率--"+x["subject"]
+                return barJsonResponse(json.loads(pie(a, text)))
+            if (type == "eventtable"):
+                x = apitable(request)
+                headers=[]
+                for i in range(0,5):
+                    if i!=2:
+                        headers.append(x["columns"][i]["name"])
+                rows=[]
+                for a in range(0,len(x["rows"])):
+                    row=[]
+                    row.append(x["rows"][a]["group"])
+                    row.append(x["rows"][a]["name"])
+                    row.append(x["rows"][a]["start"])
+                    row.append(x["rows"][a]["time"])
+                    rows.append(row)
+                text = "会议签到详情--" + x["subject"]
+                list1={"headers":headers,"rows":rows}
+                return JsonResponse(list1, json_dumps_params={'ensure_ascii': False})
+                #return barJsonResponse(table(list1, text))
+            if (type == "groupslist"):
+                x = groupslist(request)
+                return barJsonResponse(json.loads(bar(x, "GroupsList")))
+            if (type == "grouplist"):
+                x = grouplist(request)
+                text = "部门签到排名--" + x["group"]
+                return barJsonResponse(json.loads(bar(x, text)))
+            if (type == "groupsrate"):
+                x = usersrate(request)
+                name = []
+                value = []
+                for a in x["ret1"]:
+                    name.append(a["name"])
+                    value.append(a["value"])
+                a = [list(z) for z in zip(name, value)]
+                text = "本月整体签到率"
+                return barJsonResponse(json.loads(pie(a, text)))
+            if (type == "grouprate"):
+                x = grouprate(request)
+                name = []
+                value = []
+                for a in x["ret1"]:
+                    name.append(a["name"])
+                    value.append(a["value"])
+                a = [list(z) for z in zip(name, value)]
+                text = "部门签到次数--" + x["group"]
+                return barJsonResponse(json.loads(pie(a, text)))
+            if (type == "userslist"):
+                x = apilist(request)
+                if(len(x["categories"])>10):
+                    series = []
+                    for i in range(0,3):
+                        events_dict = {}
+                        events_dict["name"] = x["series"][i]["name"]
+                        events_dict["data"] = x["series"][i]["data"][len(x["categories"])-10:len(x["categories"])]
+                        series.append(events_dict)
+                    if (x["select"] == "出勤排名"):
+                        selected = ["True","False","False"]
+                    elif (x["select"] == "缺勤排名"):
+                        selected = ["False","False","True"]
+                    elif (x["select"] == "迟到排名"):
+                        selected = ["False","True","False"]
+                    data = {"categories": x["categories"][len(x["categories"])-10:len(x["categories"])], "series": series,"selected":selected}
+                    x=data
+                #return barJsonResponse(json.loads(grid_vertical()))
+                return barJsonResponse(json.loads(bar(x, "UsersList")))
+            if (type == "userrate"):
+                x = userrate(request)
+                name = []
+                value = []
+                for a in x["ret1"]:
+                    name.append(a["name"])
+                    value.append(a["value"])
+                a = [list(z) for z in zip(name, value)]
+                text = "个人签到次数--" + x["user"]
+                return barJsonResponse(json.loads(pie(a, text)))
+        except Exception as e:
+            print(e)
+        return barJsonResponse(json.loads(grid_vertical()))
+class ChartView(APIView):
+    def get(self, request, *args, **kwargs):
+        return barJsonResponse(json.loads(bar_base()))
+
+class EventView(APIView):
+    def get(self, request, *args, **kwargs):
+        #return HttpResponse(content=open("./templates/index.html").read())
+        return render(request, "eventview.html")
+        if request.session.has_key("user"):
+            return render(request, "eventview.html",{"user":request.session["user"]})
+        else:
+            return HttpResponseRedirect( "/meeting/login")
+
+class GroupView(APIView):
+    def get(self, request, *args, **kwargs):
+        #return HttpResponse(content=open("./templates/index.html").read())
+        return render(request, "groupview.html")
+        if request.session.has_key("user"):
+            return render(request, "groupview.html",{"user":request.session["user"]})
+        else:
+            return HttpResponseRedirect( "/meeting/login")
+
+class index(APIView):
+    def get(self, request, *args, **kwargs):
+        return render(request, "index.html")
+
+class UserView(APIView):
+    def get(self, request, *args, **kwargs):
+        #return HttpResponse(content=open("./templates/index.html").read())
+        return render(request, "userview.html")
+        if request.session.has_key("user"):
+            return render(request, "userview.html",{"user":request.session["user"]})
+        else:
+            return HttpResponseRedirect("/meeting/login")
+
+def login(request):
+    if request.session.has_key("user"):
+        return HttpResponseRedirect( "/meeting/eventview")
+    if request.method=="POST":
+        address=request.POST['address']
+        passwd=request.POST['passwd']
+        islogin=User.objects.filter(Address__exact=address,Passwd__exact=passwd)
+        if islogin:
+            request.session["user"]=User.objects.filter(Address=address).last().Name
+            return HttpResponseRedirect("/meeting/eventview")
+        else:
+            #return HttpResponseRedirect("/meeting/login")
+            return HttpResponseRedirect("/meeting/eventview")
+    return render(request, "login.html")
+
+def logout(request):
+    del request.session["user"]
+    return HttpResponseRedirect("/meeting/login")
+
+def changepwd(request):
+    if request.method=="POST":
+        passwd=request.POST["passwd"]
+        if(passwd!=""):
+            name=request.session["user"]
+            User.objects.filter(Name=name).update(Passwd=passwd)
+            del request.session["user"]
+            return HttpResponse("success")
+    else:
+        return HttpResponse("error")

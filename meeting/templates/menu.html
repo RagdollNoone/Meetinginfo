@@ -1,0 +1,158 @@
+<div class="container-fluid">
+	<div class="row-fluid">
+		<div class="span12">
+			<h2>
+				会议出勤率
+			</h2>
+                <ul class="nav nav-tabs">
+                {%if request.path == "/meeting/eventview/" %}
+                    <li class="active">
+                {% else %}
+                    <li>
+                {% endif %}
+                <a href="{% url 'event'%}"> 会议出勤率</a>
+                </li>
+                {% if request.path == "/meeting/groupview/" %}
+                <li class="active">
+                {% else %}
+                <li>
+                {% endif %}
+                <a href="{% url 'group'%}">部门出勤率</a>
+				</li>
+				{% if request.path == "/meeting/userview/" %}
+                <li class="active">
+                {% else %}
+                <li>
+                {% endif %}
+					<a href="{% url 'user'%}">个人出勤率</a>
+				</li>
+                <!--<li class="dropdown pull-right">
+					 <a class="dropdown-toggle" href="#" data-toggle="dropdown">{{ user }}<strong class="caret"></strong></a>
+					<ul class="dropdown-menu">
+						<li>
+							<a href="#" onclick="show_modal()">修改密码</a>
+						</li>
+						<li class="divider">
+						</li>
+						<li>
+							<a href="{% url 'logout'%}">退出登录</a>
+						</li>
+					</ul>
+				</li>-->
+                </ul>
+
+		</div>
+	</div>
+</div>
+
+<!-- 模态框（Modal） -->
+
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+
+	<div class="modal-dialog">
+
+		<div class="modal-content">
+
+			<div class="modal-header">
+
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">
+
+					&times;
+
+				</button>
+
+                <p id="Serial" name="Serial"></p>
+
+				<h4 class="modal-title" id="myModalLabel">
+
+                    修改密码
+
+				</h4>
+
+			</div>
+
+			<div class="modal-body">
+
+				<form class="form-horizontal" role="form" method="post">
+
+                 {% csrf_token %}
+
+                <div>
+
+               <div class="form-group">
+                <label for="firstname" class="col-sm-4 control-label">请输入密码</label>
+                <div class="col-sm-6">
+                  <input type="password" name="firstpwd" class="form-control" id="firstpwd" placeholder="请输入密码" autocomplete="off">
+                </div>
+                   <span id="s"></span>
+              </div>
+              <div class="form-group">
+                <label for="lastname" class="col-sm-4 control-label">再次输入密码</label>
+                <div class="col-sm-6">
+                  <input type="password"  name="lastpwd" class="form-control" id="lastpwd" placeholder="请再次输入密码" autocomplete="off">
+                </div>
+
+              </div>
+
+                </div>
+
+                </form>
+
+			</div>
+
+			<div class="modal-footer">
+
+				<button type="button" class="btn btn-default" data-dismiss="modal">关闭
+
+				</button>
+
+				<button type="button" class="btn btn-primary" onclick="change()">
+
+					提交更改
+
+				</button>
+
+			</div>
+
+		</div><!-- /.modal-content -->
+
+	</div><!-- /.modal -->
+
+</div>
+<script>
+    function show_modal() {
+    document.getElementById("firstpwd").value=""
+    document.getElementById("lastpwd").value=""
+     $('#myModal').modal('show');//显示修改备注的模态框
+};
+    function change() {
+        var pwd1=document.getElementById("firstpwd").value;
+        var pwd2=document.getElementById("lastpwd").value
+        if(pwd1!=pwd2){
+            document.getElementById("s").innerHTML="两次密码不同，请重新输入"
+        }
+        else if(pwd1=="")
+        {
+            document.getElementById("s").innerHTML="您未输入密码"
+        }
+        else{
+            $.ajax({
+                url:"/meeting/changepwd/",
+                type:"POST",
+                data:{
+                    "passwd":pwd2,
+                },
+                success:function(res) {
+                    if(res=="success"){
+                        $('#myModal').modal('hide');
+                        window.location.href='/meeting/login/';
+                    }
+                },
+                error:function(res){ //执行失败执行
+                     $('#myModal').modal('hide');
+                }
+
+    })
+        }
+    };
+</script>

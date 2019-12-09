@@ -35,11 +35,12 @@ class User(models.Model):
     Id = models.IntegerField(primary_key=True)
     Openid = models.CharField(max_length=255)
     Address = models.CharField(max_length=255)
+    Passwd = models.CharField(max_length=255)
     Name = models.CharField(max_length=255)
     Group = models.CharField(max_length=255)
 
     def __str__(self):
-        return "%d:%s:%s:%s:%s" % (self.Id, self.Openid, self.Address, self.Name, self.Group)
+        return "%d:%s:%s:%s:%s:%s" % (self.Id, self.Openid, self.Address, self.Passwd,self.Name, self.Group)
 
     class Meta:
         db_table = "user"
@@ -51,7 +52,7 @@ class Room(models.Model):
         return "%d:%s"%(self.Id,self.Meetingroom)
 
     class Meta:
-        db_table = "Room"
+        db_table = "room"
 
 class Group(models.Model):
     Id = models.IntegerField(primary_key=True)

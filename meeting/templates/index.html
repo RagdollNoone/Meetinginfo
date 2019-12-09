@@ -1,0 +1,131 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Pyechart</title>
+    <script src="/static/assets/jquery.min.js"></script>
+    <script type="text/javascript" src="/static/assets/echarts.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/bootstrap-3.3.7/css/bootstrap.min.css" >
+    <link rel="stylesheet" type="text/css" href="/static/bootstrap-datepicker-1.9.0/css/bootstrap-datepicker3.min.css" >
+<!-- jQuery (Bootstrap 的 JavaScript 插件需要引入 jQuery) -->
+      <script src="/static/bootstrap-3.3.7/js/jquery.js"></script>
+      <!-- 包括所有已编译的插件 -->
+      <script src="/static/bootstrap-3.3.7/js/bootstrap.min.js"></script>
+    <script src="/static/bootstrap-datepicker-1.9.0/js/bootstrap-datepicker.min.js"></script>
+<script src="/static/bootstrap-datepicker-1.9.0/locales/bootstrap-datepicker.zh-CN.min.js"></script>
+    <script>
+      $(function() {
+       $('.datepicker').datepicker({
+        format: 'yyyy-mm-dd',
+        startDate: '-3d'
+    });
+      });
+    </script>
+
+</head>
+<body>
+<center>
+	<div class="container-fluid" style="padding-top:20px;padding-bottom:40px"><!--条件筛选-->
+	<div class="row-fluid">
+		<div class="span12">
+            <input type="text" class="form-control" data-provide="datepicker">
+			<div class="btn-group" >
+				 <button class="btn" id="group1">All Model</button>
+				<button data-toggle="dropdown" class="btn dropdown-toggle">
+					<span class="caret"></span>
+				</button>
+				<ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+					<li role="presentation">
+						<a role="menuitem" tabindex="-1" href="#" onclick="shows1($(this).text())">AN8120-0B</a>
+					</li>
+					<li role="presentation">
+						<a role="menuitem" tabindex="-1" href="#" onclick="shows1($(this).text())">8150</a>
+					</li>
+					<li role="presentation">
+						<a role="menuitem" tabindex="-1" href="#" onclick="shows1($(this).text())">All Model</a>
+					</li>
+				</ul>
+			</div>
+			<label  class="btn btn-default" style="margin-left:20px">
+				<input id="Finishedcheckbox" type="checkbox" onclick="checkboxclick()"> Finished
+			</label>
+			<div class="btn-group" style="margin-left:20px">
+				 <button class="btn" id="group2">Datetime</button>
+				<button data-toggle="dropdown" class="btn dropdown-toggle"><span class="caret"></span></button>
+				<ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+					<li role="presentation">
+						<a role="menuitem" tabindex="-1" href="#" onclick="shows2($(this).text())">Datetime</a>
+					</li>
+					<li role="presentation">
+						<a role="menuitem" tabindex="-1" href="#" onclick="shows2($(this).text())">Total time</a>
+					</li>
+					<li role="presentation">
+						<a role="menuitem" tabindex="-1" href="#" onclick="shows2($(this).text())">By who</a>
+					</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+	</div>
+
+</center>
+    <div id="bar" style="width:1000px; height:600px;"></div>
+    <div id="pie" style="width:1000px; height:600px;"></div>
+<script>
+    $(document).ready(function(){
+      $('.datepicker').datepicker({
+        format: 'yyyy-mm-dd',
+        startDate: '-3d'
+    });
+});
+
+</script>
+    <script>
+{#        var Host="https://pipigo.club/meeting"#}
+        var Host="http://pipigo.club:9000"
+        var chart = echarts.init(document.getElementById('bar'), {renderer: 'canvas'});
+        var chart2 = echarts.init(document.getElementById('pie'), {renderer: 'canvas'});
+        $(
+            function () {
+                fetchData(chart);
+                fetchData(chart2);
+            }
+        );
+
+        function fetchData() {
+            /*$.ajax({
+                type: "GET",
+                url: Host+"/bar/",
+                dataType: 'json',
+                success: function (result) {
+                    chart.setOption(result.data);
+                }
+            });
+*/
+            $.ajax({
+                type: "POST",
+                url: Host+"/viewtype/",
+                contentType: "application/json",
+                dataType: 'json',
+                data:JSON.stringify({"type":"grou","conditions": [{"k":"dateRange","v":"2019-09-01,2019-10-23"}]}),
+                success: function (result) {
+                    chart.setOption(result.data);
+                }
+            });
+            $.ajax({
+                type: "POST",
+                url: Host+"/viewtype/",
+                contentType: "application/json",
+                dataType: 'json',
+                data:JSON.stringify({"type":"grouprate","conditions": [{"k":"dateRange","v":"2019-09-01,2019-10-23"}]}),
+                success: function (result) {
+                    chart2.setOption(result.data);
+                }
+            });
+        }
+    </script>
+
+
+</body>
+</html>

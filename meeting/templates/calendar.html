@@ -19,7 +19,7 @@
           <td>{{ event.Subject }}</td>
           <td>{{ event.Start|date:'SHORT_DATETIME_FORMAT' }}</td>
           <td>{{ event.Location }}</td>
-          <td><a class="btn" href="/meeting/calendar{{event.Id}}">Detail</a></td>
+          <td><a class="btn" href="/meeting/c{{event.Id}}/">Detail</a></td>
         </tr>
         {% for attendee in event.addtendees%}
         {% endfor %}
